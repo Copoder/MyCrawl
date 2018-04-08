@@ -4,15 +4,15 @@ from urllib import request
 from bs4 import BeautifulSoup
 import os
 import Constans
-import FileLogSystem
+import FileLogHelper
 from datetime import datetime, timedelta
 
 
-def down_load(name, path, rs):
+def down_load(name, path, content):
     if not os.path.exists(path):
         os.mkdir(path)
     temp_file = open(path + '/' + name, 'wb')
-    temp_file.write(rs.read())
+    temp_file.write(content)
     temp_file.close()
 
 
@@ -45,16 +45,16 @@ class Parser:
                 page_count = 0
                 if not os.path.exists(item_path):
                     os.mkdir(item_path)
+                FileLogHelper.write_log_with_time(item_path, 'log', 'start:' + name)
                 for page in pages:
-                    FileLogSystem.write_log_with_time(item_path, 'log', 'start:' + name)
                     print(page['href'])
                     self.save(page['href'], item_path, self.item_count)
                     page_count = page_count + 1
 
             stop = datetime.now()
             date_data = (stop - start).total_seconds()
-            FileLogSystem.write_log_with_time(item_path, 'log', 'end:耗时' + str(date_data))
-            FileLogSystem.write_log_with_time(item_path, 'log', '共计项目' + str(self.item_count) + '个')
+            FileLogHelper.write_log_with_time(item_path, 'log', 'end:耗时' + str(date_data))
+            FileLogHelper.write_log_with_time(item_path, 'log', '共计项目' + str(self.item_count) + '个')
 
     def save(self, img_url, path, item_count):
         req = request.Request(img_url, headers=Constans.HEADERS)
@@ -62,10 +62,16 @@ class Parser:
             if r.status == 200 and r.reason == 'OK':
                 read = r.read()
                 bs = BeautifulSoup(read, 'html.parser')
-                imgs = bs.find_all('img', alt=re.compile('\w+'))
-                for img in imgs:
+                imgs = bs.find_all('img', src=re.compile('.jpg$'))
+                # TODO 简化这一操作,太繁琐
+                img_set = set()
+                for item in imgs:
+                    img_set.add(item)
+
+                for img in img_set:
+                    print("下载项：" + img['src'])
                     req = request.Request(img['src'], headers=Constans.HEADERS)
                     with request.urlopen(req) as rs:
                         if rs.status == 200 and rs.reason == 'OK':
-                            down_load(self.item_count.__str__() + '.jpg', path, rs)
+                            down_load(self.item_count.__str__() + '.jpg', path, rs.read())
                             self.item_count = self.item_count + 1
